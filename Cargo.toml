@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.104"
 git2 = "0.21.0"
-ratatui = "0.30.2"
+inquire = "0.9"
