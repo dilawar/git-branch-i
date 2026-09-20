@@ -114,8 +114,7 @@ impl AppState {
     fn branches_order_by_ctime(&self, action: BranchAction) -> anyhow::Result<Vec<GitBranch<'_>>> {
         // For delete action, we only local branches.
         let filter = match action {
-            BranchAction::Delete => Some(git2::BranchType::Local),
-            _ => None,
+            BranchAction::Delete | BranchAction::Checkout => Some(git2::BranchType::Local),
         };
 
         let mut result: Vec<_> = self
