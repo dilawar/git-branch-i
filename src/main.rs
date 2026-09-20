@@ -79,7 +79,7 @@ impl BranchAction {
                 );
                 let refname = reference.expect("must be set");
                 anyhow::ensure!(refname.is_branch(), "reference is not a branch");
-                println!("checking out {branch}");
+                println!("checking out {}", branch.name().unwrap_or_default());
                 repo.checkout_tree(&object, None)?;
                 repo.set_head(refname.name().expect("must have a valid name"))?;
             }
