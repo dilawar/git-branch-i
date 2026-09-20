@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
-use git2::Repository;
+use git2::{Reference, Repository};
 use inquire::Select;
 use strum::IntoEnumIterator;
 
@@ -25,7 +25,7 @@ impl<'a> GitBranch<'a> {
     }
 
     fn commit_time(&self) -> SystemTime {
-        let branch = self.0.get();
+        let branch = self.reference();
         UNIX_EPOCH
             + std::time::Duration::from_secs(
                 branch
@@ -35,6 +35,14 @@ impl<'a> GitBranch<'a> {
                     .seconds() as u64,
             )
     }
+
+    fn reference(&self) -> &Reference<'_> {
+        self.0.get()
+    }
+
+    fn peel_to_commit(&self) -> anyhow::Result<git2::Commit<'_>> {
+        Ok(self.reference().peel_to_commit()?)
+    }
 }
 
 impl std::fmt::Display for GitBranch<'_> {
@@ -43,13 +51,8 @@ impl std::fmt::Display for GitBranch<'_> {
             f,
             "{} {:30} {:20} {} ago",
             if self.0.is_head() { '*' } else { ' ' },
-            self.0
-                .name()
-                .map_err(|_e| std::fmt::Error)?
-                .unwrap_or_default(),
-            self.0
-                .get()
-                .peel_to_commit()
+            self.name().unwrap_or_default(),
+            self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
                 .name()
@@ -81,6 +84,12 @@ impl BranchAction {
                 repo.set_head(refname.name().expect("must have a valid name"))?;
             }
             Self::Delete => {
+                // pre-checks.
+                let repo_head = repo.head()?;
+                anyhow::ensure!(
+                    &repo_head != branch.reference(),
+                    "can't delete current branch!"
+                );
                 println!("Deleting given branch {branch}");
                 let mut branch = branch.0;
                 branch.delete()?;
