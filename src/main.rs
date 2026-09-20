@@ -119,7 +119,7 @@ impl AppState {
             .map(|x| GitBranch(x.0))
             .collect();
 
-        result.sort_by(|a, b| a.commit_time().cmp(&b.commit_time()));
+        result.sort_by_key(|a| a.commit_time());
 
         Ok(result)
     }
@@ -133,12 +133,14 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run_app(app_state: &AppState) -> anyhow::Result<()> {
-    let options = app_state.branches()?;
-    let selected_branch = Select::new("Select a branch?", options).prompt()?;
-
     // select action on selected branch.
     let allowed_actions = BranchAction::iter().collect();
-    let selected_action = Select::new("select action on this branch", allowed_actions).prompt()?;
+    let selected_action =
+        Select::new("What do you want to do with a branch?", allowed_actions).prompt()?;
+
+    let options = app_state.branches()?;
+    let selected_branch =
+        Select::new(&format!("Select a branch to {selected_action}"), options).prompt()?;
 
     selected_action.act_on(selected_branch, &app_state.repo)?;
 
