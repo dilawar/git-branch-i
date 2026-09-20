@@ -7,4 +7,5 @@ edition = "2024"
 anyhow = "1.0.104"
 git2 = "0.21.0"
 inquire = "0.9.4"
+strum = { version = "0.28.0", features = ["derive"] }
 tracing = "0.1.44"

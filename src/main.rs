@@ -1,11 +1,33 @@
-use std::option;
-
-use git2::Branch;
 use inquire::Select;
+use strum::IntoEnumIterator;
 
 struct AppState {
     repo: git2::Repository,
     branches: Vec<String>,
+}
+
+#[derive(Default, strum::EnumString, strum::EnumIter, strum::Display)]
+#[strum(serialize_all = "lowercase")]
+enum BranchAction {
+    #[default]
+    Checkout,
+    Delete,
+}
+
+impl BranchAction {
+    fn act_on(self, branch: &str) -> anyhow::Result<()> {
+        // act on given BranchAction
+        match self {
+            Self::Checkout => {
+                println!("checking out {branch}");
+            }
+            Self::Delete => {
+                println!("Deleting given branch {branch}");
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl AppState {
@@ -32,20 +54,12 @@ impl AppState {
     fn branches(&self) -> impl Iterator<Item = &str> {
         self.branches.iter().map(|x| x.as_str())
     }
-
-    fn print(&self) {
-        let mut i = 0;
-        for branch in self.branches() {
-            println!("{i}: {branch}");
-            i += 1;
-        }
-    }
 }
 
 fn main() -> anyhow::Result<()> {
     let mut app_state = AppState::new();
     // Run the main application loop
-    let _app_result = run_app(&mut app_state)?;
+    run_app(&mut app_state)?;
     Ok(())
 }
 
@@ -53,13 +67,13 @@ fn run_app(app_state: &mut AppState) -> anyhow::Result<()> {
     app_state.load_branches()?;
 
     let options = app_state.branches().collect();
-    let selected_branch = Select::new("Select a branch?", options).prompt();
-    anyhow::ensure!(selected_branch.is_ok(), "no branch is selected");
+    let selected_branch = Select::new("Select a branch?", options).prompt()?;
 
     // select action on selected branch.
-    let allowed_actions = vec!["checkout", "delete"];
-    let selected_action = Select::new("select action on this branch", allowed_actions).prompt();
-    anyhow::ensure!(selected_action.is_ok(), "no action is selected");
+    let allowed_actions = BranchAction::iter().collect();
+    let selected_action = Select::new("select action on this branch", allowed_actions).prompt()?;
+
+    selected_action.act_on(selected_branch)?;
 
     Ok(())
 }
