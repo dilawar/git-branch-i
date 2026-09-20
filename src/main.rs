@@ -41,12 +41,19 @@ impl std::fmt::Display for GitBranch<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
-            "{} {:20} {} ago",
+            "{} {:30} {:20} {} ago",
             if self.0.is_head() { '*' } else { ' ' },
             self.0
                 .name()
                 .map_err(|_e| std::fmt::Error)?
                 .unwrap_or_default(),
+            self.0
+                .get()
+                .peel_to_commit()
+                .expect("must be a valid commit")
+                .author()
+                .name()
+                .unwrap_or("NA"),
             humantime::format_duration(
                 SystemTime::now()
                     .duration_since(self.commit_time())
