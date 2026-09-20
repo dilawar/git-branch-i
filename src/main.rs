@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Context;
 use git2::Repository;
 use inquire::Select;
@@ -15,11 +17,23 @@ enum BranchAction {
     Delete,
 }
 
-struct GitBranch<'a>(pub git2::Branch<'a>);
+struct GitBranch<'a>(git2::Branch<'a>);
 
 impl<'a> GitBranch<'a> {
     fn name(&self) -> Option<&str> {
         self.0.name().ok().flatten()
+    }
+
+    fn commit_time(&self) -> SystemTime {
+        let branch = self.0.get();
+        UNIX_EPOCH
+            + std::time::Duration::from_secs(
+                branch
+                    .peel_to_commit()
+                    .expect("must be a valid commit")
+                    .time()
+                    .seconds() as u64,
+            )
     }
 }
 
@@ -27,11 +41,17 @@ impl std::fmt::Display for GitBranch<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
-            "{}",
+            "{} {:20} {} ago",
+            if self.0.is_head() { '*' } else { ' ' },
             self.0
                 .name()
                 .map_err(|_e| std::fmt::Error)?
-                .unwrap_or_default()
+                .unwrap_or_default(),
+            humantime::format_duration(
+                SystemTime::now()
+                    .duration_since(self.commit_time())
+                    .expect("should not fail")
+            ),
         )
     }
 }
@@ -71,13 +91,21 @@ impl AppState {
         }
     }
 
+    // Return branches.
+    //
+    // - Ordered by modification time.
+    // - Current user branch at the top.
     fn branches(&self) -> anyhow::Result<Vec<GitBranch<'_>>> {
-        Ok(self
+        let mut result: Vec<_> = self
             .repo
             .branches(None)?
             .flatten()
             .map(|x| GitBranch(x.0))
-            .collect())
+            .collect();
+
+        result.sort_by(|a, b| a.commit_time().cmp(&b.commit_time()));
+
+        Ok(result)
     }
 }
 
