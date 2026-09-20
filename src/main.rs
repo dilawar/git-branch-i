@@ -9,7 +9,7 @@ struct AppState {
     repo: Repository,
 }
 
-#[derive(Default, strum::EnumString, strum::EnumIter, strum::Display)]
+#[derive(Clone, Copy, Default, strum::EnumString, strum::EnumIter, strum::Display)]
 #[strum(serialize_all = "lowercase")]
 enum BranchAction {
     #[default]
@@ -47,21 +47,22 @@ impl<'a> GitBranch<'a> {
 
 impl std::fmt::Display for GitBranch<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let current_branch_marker = if self.0.is_head() { '*' } else { ' ' };
+        let branch_name = self.name().unwrap_or_default();
+        let commit_time = humantime::format_duration(
+            SystemTime::now()
+                .duration_since(self.commit_time())
+                .expect("should not fail"),
+        );
+
         write!(
             f,
-            "{} {:30} {:20} {} ago",
-            if self.0.is_head() { '*' } else { ' ' },
-            self.name().unwrap_or_default(),
+            "{current_branch_marker} {branch_name:30} {:20} {commit_time} ago",
             self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
                 .name()
                 .unwrap_or("NA"),
-            humantime::format_duration(
-                SystemTime::now()
-                    .duration_since(self.commit_time())
-                    .expect("should not fail")
-            ),
         )
     }
 }
@@ -107,28 +108,38 @@ impl AppState {
         }
     }
 
-    // Return branches.
+    // List branches depending on action
     //
-    // - Ordered by modification time.
-    // - Current user branch at the top.
-    fn branches(&self) -> anyhow::Result<Vec<GitBranch<'_>>> {
+    // Ordered by modification time.
+    fn branches_order_by_ctime(&self, action: BranchAction) -> anyhow::Result<Vec<GitBranch<'_>>> {
+        // For delete action, we only local branches.
+        let filter = match action {
+            BranchAction::Delete => Some(git2::BranchType::Local),
+            _ => None,
+        };
+
         let mut result: Vec<_> = self
             .repo
-            .branches(None)?
+            .branches(filter)?
             .flatten()
             .map(|x| GitBranch(x.0))
             .collect();
 
         result.sort_by_key(|a| a.commit_time());
 
+        // filter brnach depending on action.
+        let result = match action {
+            BranchAction::Delete => result,
+            BranchAction::Checkout => result,
+        };
+
         Ok(result)
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    let mut app_state = AppState::new();
-    // Run the main application loop
-    run_app(&mut app_state)?;
+    let app_state = AppState::new();
+    run_app(&app_state)?;
     Ok(())
 }
 
@@ -138,7 +149,7 @@ fn run_app(app_state: &AppState) -> anyhow::Result<()> {
     let selected_action =
         Select::new("What do you want to do with a branch?", allowed_actions).prompt()?;
 
-    let options = app_state.branches()?;
+    let options = app_state.branches_order_by_ctime(selected_action)?;
     let selected_branch =
         Select::new(&format!("Select a branch to {selected_action}"), options).prompt()?;
 
