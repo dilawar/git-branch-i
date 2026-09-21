@@ -80,11 +80,15 @@ impl BranchAction {
                     reference.is_some(),
                     "Can't checkout tree without a valid reference"
                 );
-                let refname = reference.expect("must be set");
-                anyhow::ensure!(refname.is_branch(), "reference is not a branch");
                 println!("checking out {}", branch.name().unwrap_or_default());
                 repo.checkout_tree(&object, None)?;
-                repo.set_head(refname.name().expect("must have a valid name"))?;
+
+                match reference {
+                    Some(gref) => repo.set_head(gref.name().expect("must have a valid name")),
+                    // this is a commit, not a reference
+                    None => repo.set_head_detached(object.id()),
+                }
+                .expect("failed to set HEAD");
             }
             Self::Delete => {
                 // pre-checks.
@@ -114,9 +118,11 @@ impl AppState {
     //
     // Ordered by modification time.
     fn branches_order_by_ctime(&self, action: BranchAction) -> anyhow::Result<Vec<GitBranch<'_>>> {
-        // For delete action, we only local branches.
+        // For delete action, we only show local branches. For checkout, show remote branches
+        // that do not have remote counterpart.
         let filter = match action {
-            BranchAction::Delete | BranchAction::Checkout => Some(git2::BranchType::Local),
+            BranchAction::Delete => Some(git2::BranchType::Local),
+            BranchAction::Checkout => None,
         };
 
         let mut result: Vec<_> = self
