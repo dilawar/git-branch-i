@@ -59,7 +59,7 @@ impl std::fmt::Display for GitBranch<'_> {
 
         write!(
             f,
-            "({commit_time} ago) {branch_name:30} {:20}",
+            "({commit_time} ago by {}) {branch_name}",
             self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
