@@ -47,9 +47,11 @@ impl<'a> GitBranch<'a> {
 
 impl std::fmt::Display for GitBranch<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let current_branch_marker = if self.0.is_head() { '*' } else { ' ' };
+        let _current_branch_marker = if self.0.is_head() { '*' } else { ' ' };
         let branch_name = self.name().unwrap_or_default();
-        let commit_time = humantime::format_duration(
+
+        // Format the time to X days Y hours Z mins, X secs ago"
+        let commit_time = timeago::format_5chars(
             SystemTime::now()
                 .duration_since(self.commit_time())
                 .expect("should not fail"),
@@ -57,7 +59,7 @@ impl std::fmt::Display for GitBranch<'_> {
 
         write!(
             f,
-            "{current_branch_marker} {branch_name:30} {:20} {commit_time} ago",
+            "({commit_time} ago) {branch_name:30} {:20}",
             self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
@@ -124,7 +126,9 @@ impl AppState {
             .map(|x| GitBranch(x.0))
             .collect();
 
+        // newest first
         result.sort_by_key(|a| a.commit_time());
+        result.reverse();
 
         // filter brnach depending on action.
         let result = match action {
@@ -149,8 +153,10 @@ fn run_app(app_state: &AppState) -> anyhow::Result<()> {
         Select::new("What do you want to do with a branch?", allowed_actions).prompt()?;
 
     let options = app_state.branches_order_by_ctime(selected_action)?;
-    let selected_branch =
-        Select::new(&format!("Select a branch to {selected_action}"), options).prompt()?;
+    let selected_branch = Select::new(&format!("Select a branch to {selected_action}"), options)
+        .with_page_size(20)
+        .with_vim_mode(true)
+        .prompt()?;
 
     selected_action.act_on(selected_branch, &app_state.repo)?;
 
