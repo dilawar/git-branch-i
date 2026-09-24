@@ -56,16 +56,15 @@ impl std::fmt::Display for GitBranch<'_> {
                 .duration_since(self.commit_time())
                 .expect("should not fail"),
         );
-
-        write!(
-            f,
-            "({commit_time} ago by {}) {branch_name}",
+        let prefix = format!(
+            "{commit_time} ago by {}",
             self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
                 .name()
-                .unwrap_or("NA"),
-        )
+                .unwrap_or("NA")
+        );
+        write!(f, "({prefix:20}) {branch_name}")
     }
 }
 
