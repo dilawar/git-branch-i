@@ -64,7 +64,7 @@ impl std::fmt::Display for GitBranch<'_> {
                 .name()
                 .unwrap_or("NA")
         );
-        write!(f, "({prefix:20}) {branch_name}")
+        write!(f, "({prefix:30}) {branch_name}")
     }
 }
 
