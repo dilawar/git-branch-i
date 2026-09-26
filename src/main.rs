@@ -57,14 +57,14 @@ impl std::fmt::Display for GitBranch<'_> {
                 .expect("should not fail"),
         );
         let prefix = format!(
-            "{commit_time} ago by {}",
+            "{commit_time}\t{}",
             self.peel_to_commit()
                 .expect("must be a valid commit")
                 .author()
                 .name()
                 .unwrap_or("NA")
         );
-        write!(f, "({prefix:30}) {branch_name}")
+        write!(f, "{prefix:30}\t{branch_name}")
     }
 }
 
@@ -79,15 +79,20 @@ impl BranchAction {
                     reference.is_some(),
                     "Can't checkout tree without a valid reference"
                 );
-                println!("checking out {}", branch.name().unwrap_or_default());
-                repo.checkout_tree(&object, None)?;
 
-                match reference {
-                    Some(gref) => repo.set_head(gref.name().expect("must have a valid name")),
-                    // this is a commit, not a reference
-                    None => repo.set_head_detached(object.id()),
-                }
-                .expect("failed to set HEAD");
+                let remote_branch_name: String = branch.name().unwrap_or_default().into();
+                println!("checking out {}", remote_branch_name);
+
+                repo.checkout_tree(&object, None)?;
+                let local_branch_name = match reference {
+                    Some(gref) => gref.name().expect("must have a valid name").to_string(),
+                    None => {
+                        println!("no reference found. creating a local branch!");
+                        remote_branch_name.rsplitn(2, '/').collect::<Vec<_>>()[0].to_string()
+                    }
+                };
+                repo.set_head(&local_branch_name)
+                    .expect("failed to set branch");
             }
             Self::Delete => {
                 // pre-checks.
