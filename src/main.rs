@@ -80,19 +80,32 @@ impl BranchAction {
                     "Can't checkout tree without a valid reference"
                 );
 
-                let remote_branch_name: String = branch.name().unwrap_or_default().into();
-                println!("checking out {}", remote_branch_name);
+                let remote_branch_name = branch.name().unwrap_or_default();
+                let local_branch_name = remote_branch_name.rsplitn(2, '/').collect::<Vec<_>>()[0];
 
+                log::info!("checking out {}", remote_branch_name);
                 repo.checkout_tree(&object, None)?;
-                let local_branch_name = match reference {
-                    Some(gref) => gref.name().expect("must have a valid name").to_string(),
-                    None => {
-                        println!("no reference found. creating a local branch!");
-                        remote_branch_name.rsplitn(2, '/').collect::<Vec<_>>()[0].to_string()
-                    }
-                };
-                repo.set_head(&local_branch_name)
-                    .expect("failed to set branch");
+
+                // find local branch. If not found, create.
+                let local_branch =
+                    match repo.find_branch(local_branch_name, git2::BranchType::Local) {
+                        Ok(branch) => branch,
+                        Err(e) if e.code() == git2::ErrorCode::NotFound => {
+                            let target_commit =
+                                branch.peel_to_commit().expect("must be a valid commit");
+                            let mut new_branch = repo
+                                .branch(local_branch_name, &target_commit, false)
+                                .expect("must create local branch");
+                            new_branch.set_upstream(Some(remote_branch_name))?;
+                            new_branch
+                        }
+                        Err(e) => anyhow::bail!("could not create local branch: {e}"),
+                    };
+
+                // checkout working tree and point HEAD to local branch.
+                let target_commit = local_branch.get().peel_to_commit()?;
+                repo.checkout_tree(target_commit.as_object(), None)?;
+                repo.set_head(&format!("refs/heads/{}", local_branch_name))?;
             }
             Self::Delete => {
                 // pre-checks.
@@ -101,7 +114,7 @@ impl BranchAction {
                     &repo_head != branch.reference(),
                     "can't delete current branch!"
                 );
-                println!("Deleting given branch {branch}");
+                log::info!("Deleting given branch {branch}");
                 let mut branch = branch.0;
                 branch.delete()?;
             }
@@ -151,6 +164,7 @@ impl AppState {
 }
 
 fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let app_state = AppState::new();
     run_app(&app_state)?;
     Ok(())

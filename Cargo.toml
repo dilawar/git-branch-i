@@ -1,6 +1,6 @@
 [package]
 name = "git-branch-i"
-version = "0.2.1"
+version = "0.3.1"
 edition = "2024"
 
 [dependencies]
@@ -9,4 +9,5 @@ git2 = "0.21.0"
 timeago = "0.4"
 inquire = "0.9.4"
 strum = { version = "0.28.0", features = ["derive"] }
-tracing = "0.1.44"
+log = "0.4.34"
+env_logger = "0.11.11"
